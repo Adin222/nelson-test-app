@@ -166,14 +166,6 @@ export default function ModelItem({
     return false;
   };
 
-  const handleDoubleClick = () => {
-    const ctrl = transformRef.current;
-    if (!ctrl) return;
-    const currentMode = ctrl.getMode ? ctrl.getMode() : "translate";
-    const newMode = currentMode === "translate" ? "rotate" : "translate";
-    ctrl.setMode(newMode);
-  };
-
   if (!sceneClone) return null;
 
   return (
@@ -198,7 +190,7 @@ export default function ModelItem({
         );
       }}
     >
-      <group ref={meshRef} onDoubleClick={handleDoubleClick}>
+      <group ref={meshRef}>
         <primitive object={sceneClone} />
       </group>
     </TransformControls>

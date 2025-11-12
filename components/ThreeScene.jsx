@@ -1,40 +1,33 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback, Suspense } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import React, { useRef, useState, useEffect, Suspense } from "react";
+import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { saveModelDoc, loadAllModels } from "../lib/firebase";
-import debounce from "lodash.debounce";
+
+//Helper components
 import ModelItem from "@/components/ModelItem";
+import ModelControls from "./ModelControls";
 
-function TopDownCamera() {
-  const { camera, size } = useThree();
-  useEffect(() => {
-    camera.position.set(0, 20, 0);
-    camera.up.set(0, 0, -1);
-    camera.lookAt(0, 0, 0);
-    camera.near = 0.1;
-    camera.far = 1000;
-    camera.updateProjectionMatrix();
-  }, [camera, size]);
-  return null;
-}
-
-function PerspectiveCameraSetup() {
-  const { camera } = useThree();
-  useEffect(() => {
-    camera.position.set(5, 5, 5);
-    camera.lookAt(0, 0, 0);
-  }, [camera]);
-  return null;
-}
+//Custom hooks
+import {
+  useModelHandlers,
+  PerspectiveCameraSetup,
+  TopDownCamera,
+} from "../hooks/useModelHandlers";
 
 export default function ThreeScene() {
   const [models, setModels] = useState(null);
   const [view, setView] = useState("3d");
   const otherBounds = useRef([]);
-
   const orbitRef = useRef();
+
+  const {
+    handleModelChange,
+    handleTransform,
+    handleTransformStart,
+    handleTransformEnd,
+    fetchModels,
+  } = useModelHandlers(setModels);
 
   useEffect(() => {
     const camera = window.__APP_CAMERA__;
@@ -48,64 +41,14 @@ export default function ThreeScene() {
     orbitRef.current.update();
   }, [view]);
 
-  const debouncedSave = useCallback(
-    debounce(async (id, data) => {
-      await saveModelDoc(id, data);
-    }, 300),
-    []
-  );
-
   useEffect(() => {
-    (async () => {
-      const arr = await loadAllModels();
-      if (arr.length === 0) {
-        const seed = [
-          {
-            id: "model1",
-            position: { x: -2, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0 },
-            modelUrl: "/models/model1.glb",
-          },
-          {
-            id: "model2",
-            position: { x: 2, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0 },
-            modelUrl: "/models/model2.glb",
-          },
-        ];
-        for (const s of seed) await saveModelDoc(s.id, s);
-        setModels(seed);
-      } else {
-        setModels(
-          arr.map((a) => ({
-            id: a.id,
-            position: a.position || { x: 0, y: 0, z: 0 },
-            rotation: a.rotation || { x: 0, y: 0, z: 0 },
-            modelUrl: a.modelUrl || `/models/${a.id}.glb`,
-          }))
-        );
-      }
-    })();
+    fetchModels();
   }, []);
-
-  function handleTransformStart(id) {}
-
-  function handleTransformEnd(id, state) {
-    setModels((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...state } : m))
-    );
-
-    saveModelDoc(id, state);
-  }
-
-  function handleTransform(id, state) {
-    debouncedSave(id, { position: state.position, rotation: state.rotation });
-  }
 
   if (!models) return <div>Loading models...</div>;
 
   return (
-    <>
+    <React.Fragment>
       <div style={{ position: "absolute", zIndex: 10, left: 12, top: 12 }}>
         <button onClick={() => setView((v) => (v === "3d" ? "2d" : "3d"))}>
           Toggle view: {view === "3d" ? "3D" : "2D (top)"}
@@ -141,7 +84,7 @@ export default function ThreeScene() {
             <OrbitControls
               ref={orbitRef}
               enableRotate={false}
-              enableZoom={true}
+              enableZoom={false}
               enablePan={true}
               zoomSpeed={1}
               panSpeed={0.8}
@@ -182,79 +125,12 @@ export default function ThreeScene() {
           <ModelControls
             key={m.id}
             model={m}
-            onChange={async (newState) => {
-              setModels((prev) =>
-                prev.map((x) => (x.id === m.id ? { ...x, ...newState } : x))
-              );
-              await saveModelDoc(m.id, newState);
-            }}
+            onChange={(newState) =>
+              handleModelChange(m.id, newState, setModels)
+            }
           />
         ))}
       </div>
-    </>
-  );
-}
-
-function ModelControls({ model, onChange }) {
-  const [rx, setRx] = useState(model.rotation.x || 0);
-  const [ry, setRy] = useState(model.rotation.y || 0);
-  const [rz, setRz] = useState(model.rotation.z || 0);
-
-  useEffect(() => {
-    setRx(model.rotation.x);
-    setRy(model.rotation.y);
-    setRz(model.rotation.z);
-  }, [model.rotation]);
-
-  const updateRotation = (axis, value) => {
-    const newRot = { x: rx, y: ry, z: rz, [axis]: value };
-
-    if (axis === "x") setRx(value);
-    if (axis === "y") setRy(value);
-    if (axis === "z") setRz(value);
-
-    onChange({ rotation: newRot, position: model.position });
-  };
-
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <strong>{model.id}</strong>
-
-      <div>
-        X:
-        <input
-          type="range"
-          min={-Math.PI}
-          max={Math.PI}
-          step={0.01}
-          value={rx}
-          onChange={(e) => updateRotation("x", parseFloat(e.target.value))}
-        />
-      </div>
-
-      <div>
-        Y:
-        <input
-          type="range"
-          min={-Math.PI}
-          max={Math.PI}
-          step={0.01}
-          value={ry}
-          onChange={(e) => updateRotation("y", parseFloat(e.target.value))}
-        />
-      </div>
-
-      <div>
-        Z:
-        <input
-          type="range"
-          min={-Math.PI}
-          max={Math.PI}
-          step={0.01}
-          value={rz}
-          onChange={(e) => updateRotation("z", parseFloat(e.target.value))}
-        />
-      </div>
-    </div>
+    </React.Fragment>
   );
 }
