@@ -7,7 +7,7 @@ This is a test application for Nelson Cabinetry LLC. The app features two GLB mo
 First you have to clone this repo to your PC. 
 
 ## Create .env file
-Create .env file in root of your project and paste these variables. You will need to generate your own unique values in the Firebase console.
+Create .env file in root of your project and paste these variables. You will need to generate your own unique values in the Firebase console. Next, you will need to manually create a models collection in Firebase and add two documents. Each document should include position (x,y,z), rotation (x,y,z), scale, and modelUrl. The modelUrl must be either /models/model1.glb or /models/model2.glb.
 
 ```env
 NEXT_PUBLIC_FIREBASE_API_KEY=...
